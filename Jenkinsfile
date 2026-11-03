@@ -128,7 +128,7 @@ def sendTelegram(String status) {
     writeFile file: 'tg_buttons.json', text: buttons
 
     withCredentials([
-        string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+        string(credentialsId: 'telegram-bot-token', variable: 'TG_TOKEN'),
         string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
     ]) {
         sh '''
