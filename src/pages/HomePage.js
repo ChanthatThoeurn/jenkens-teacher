@@ -11,6 +11,7 @@ const HomePage = () => {
                     <h1 className="display-2 header-title">
                         {" "}
                       Welcome to EarthDX Clone by chanthat main of god
+                      happey nas
                     </h1>
                     <h1>Chanthat is top one of boy</h1>
                     <h2>The boss</h2>
