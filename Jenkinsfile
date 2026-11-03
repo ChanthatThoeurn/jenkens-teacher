@@ -164,11 +164,36 @@ pipeline {
     post {
         success {
             echo 'Pipeline completed successfully!'
+
+            withCredentials([
+                string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+                string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
+            ]) {
+                sh '''
+                    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+                      -d chat_id="${TG_CHAT}" \
+                      --data-urlencode text="✅ ${JOB_NAME} #${BUILD_NUMBER} deployed successfully
+${BUILD_URL}" \
+                      || true
+                '''
+            }
         }
 
         failure {
             echo 'Pipeline failed. Check Console Output!'
+
+            withCredentials([
+                string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+                string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
+            ]) {
+                sh '''
+                    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+                      -d chat_id="${TG_CHAT}" \
+                      --data-urlencode text="❌ ${JOB_NAME} #${BUILD_NUMBER} FAILED
+${BUILD_URL}console" \
+                      || true
+                '''
+            }
         }
     }
 }
-
