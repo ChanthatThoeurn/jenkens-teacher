@@ -166,7 +166,7 @@ pipeline {
             echo 'Pipeline completed successfully!'
 
             withCredentials([
-                string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+                string(credentialsId: 'telegram-bot-token', variable: 'TG_TOKEN'),
                 string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
             ]) {
                 sh '''
@@ -183,7 +183,7 @@ ${BUILD_URL}" \
             echo 'Pipeline failed. Check Console Output!'
 
             withCredentials([
-                string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+                string(credentialsId: 'telegram-bot-token', variable: 'TG_TOKEN'),
                 string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
             ]) {
                 sh '''
