@@ -10,13 +10,9 @@ const HomePage = () => {
                 <div className="container pt-4   order-2 order-md-1">
                     <h1 className="display-2 header-title">
                         {" "}
-                      Welcome to EarthDX Clone by chanthat main of god
-                      happey nas when deploy success
+                      Welcome to EarthDX 
                     </h1>
-                    <h1> មិនទាន់អស់ចិតទេចង់ Test ម្ដងទៀត</h1>
-                    <h1>I am certbot for my domain jenthat</h1>
-                    <h1>am add have config docker hub more</h1>
-                    <h1>Do it sccuss </h1>
+                    <h1>This is homework tree</h1>
                     <p> We are a team of passionate people whose goal is to improve everyone's life through disruptive products. We build great products to solve your business problems.</p>
                     <div className="d-flex pt-5">
                         <button className="btn btn-success px-4 py-2">
