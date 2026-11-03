@@ -1,0 +1,179 @@
+# Scan Docker image with trivy
+
+on:
+  push:
+    branches: [ "master454" ]
+
+env:
+  IMAGE_NAME: reactjs-image-gcp
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest 
+    environment: DOCKER_REPOSITORY
+    steps: 
+      - name: Checkout Code 
+        uses: actions/checkout@v3
+        with:   
+          fetch-depth: 0 # Shallow clone should be disable for the better relevancy of analysis 
+      - name: Sonarqube Scan 
+        uses: sonarsource/sonarqube-scan-action@v3.0.0
+        env: 
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.IMAGE_NAME }}
+            -Dsonar.sources=. 
+            -Dsonar.working.directory=.scannerwork
+      # -Dsonar.branch.name=${{ github.ref_name }}
+      - name: Archive Sonar Reports 
+        run: cat .scannerwork/report-task.txt
+      - name: SonarQube Quality Gate Check
+        id: sonarqube-quality-gate-check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        with: 
+          scanMetadataReportFile: .scannerwork/report-task.txt
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }} 
+      # 3. ADDED: Send Telegram if SonarQube Fails
+      - name: Send Telegram SonarQube Failure
+        if: failure() && steps.sonarqube-quality-gate-check.outcome == 'failure'
+        run: |
+          MESSAGE="❌ *SonarQube Quality Gate Failed*
+          
+          *Project:* ${{ env.IMAGE_NAME }}
+          *Status:* FAILED
+          *Link:* ${{ secrets.SONAR_HOST_URL }}/dashboard?id=${{ env.IMAGE_NAME }}"
+          
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d parse_mode="Markdown" \
+            -d text="$MESSAGE"     
+      - name: Use with SHA 
+        run: | 
+          echo "TAG=${GITHUB_SHA::8}" >> $GITHUB_ENV
+      - name: Show the TAGS values
+        run: |
+          echo "TAG value is : ${{ env.TAG }}"
+      - name: Login to Docker Registry 
+        run: |
+          echo "${{ secrets.PASSWORD }}" | docker login -u ${{ secrets.USERNAME }} --password-stdin
+      - name: Build Docker Image
+        run: docker build -t ${{ secrets.USERNAME }}/${{env.IMAGE_NAME }}:${{ env.TAG }} .
+
+      # - name: Scan the Docker Image with Trivy 
+      #   id: trivy 
+      #   uses: aquasecurity/trivy-action@v0.20.0
+      #   with: 
+      #     image-ref: ${{ secrets.USERNAME }}/${{env.IMAGE_NAME }}:${{ env.TAG }} 
+      #     format: table 
+      #     exit-code: 1 
+      #     severity: CRITICAL,HIGH
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+      - name: Run Trivy scan and save report
+        id: trivy
+        run: |
+          trivy image \
+            --format json \
+            --output trivy-report.json \
+            --severity CRITICAL,HIGH \
+            ${{ secrets.USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.TAG }} || true
+
+      - name: Parse vulnerabilities and Build Summary
+        run: |
+          # Count vulnerabilities
+          CRITICAL_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-report.json || echo 0)
+          HIGH_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-report.json || echo 0)
+          
+          # Extract top 5 Critical Vulnerabilities for the report
+          DETAIL_LIST=$(jq -r '.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL") | "• \(.VulnerabilityID) (\(.PkgName))" ' trivy-report.json | head -n 10)
+          
+          # Save to Environment
+          echo "CRITICAL=$CRITICAL_COUNT" >> $GITHUB_ENV
+          echo "HIGH=$HIGH_COUNT" >> $GITHUB_ENV
+          
+          # Use a multiline environment variable for the details
+          {
+            echo "VULN_DETAILS<<EOF"
+            echo "$DETAIL_LIST"
+            echo "EOF"
+          } >> $GITHUB_ENV
+
+      - name: Send Telegram Report
+        if: env.CRITICAL != '0' || env.HIGH != '0'
+        run: |
+          # Build the multiline message
+          MESSAGE="🚨 *Docker Scan Results*
+          
+          *Image:* \`${{ env.IMAGE_NAME }}:${{ env.TAG }}\`
+          *Critical:* ${{ env.CRITICAL }}
+          *High:* ${{ env.HIGH }}
+          
+          *Top Critical Issues:*
+          ${{ env.VULN_DETAILS }}
+          
+          _Check GitHub Action logs for full report._"
+
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d parse_mode="Markdown" \
+            -d text="$MESSAGE"
+
+      - name: Fail if vulnerabilities found
+        if: env.CRITICAL != '0' || env.HIGH != '0'
+        run: exit 1
+      - name: Push the Docker image 
+        if: success()
+        run: |
+          docker push ${{ secrets.USERNAME }}/${{env.IMAGE_NAME }}:${{ env.TAG }}
+      - name: Logout from the Registry
+        if: always()
+        run: |
+          docker logout 
+  deploy-service: 
+    needs: build-and-push
+    if: success()
+    runs-on: ubuntu-latest
+    environment: GCP
+    steps: 
+      - name: Checkout Code 
+        uses: actions/checkout@v3
+      - name: Checking Result 
+        run: |
+          echo "Production on Deployment Works"
+      # - name: Use with SHA 
+      #   run: | 
+      #     echo "TAG=${GITHUB_SHA::8}" >> $GITHUB_ENV
+      # - name: Deploy via SSH to GCP VM 
+      #   uses: appleboy/ssh-action@v1.0.0
+      #   with: 
+      #     host: ${{ secrets.GCP_IP }}
+      #     username: ${{ secrets.GCP_USER }}
+      #     key: ${{ secrets.GCP_PRIVATE_KEY }}
+      #     envs: TAG
+      #     script: |
+      #       echo "Current location is $(pwd) "
+            
+      #       echo "remove the container "
+      #       docker stop my-app || true 
+      #       docker rm my-app || true 
+
+      #       echo "Pulling the updating image "
+      #       docker pull "69966/${{env.IMAGE_NAME }}:${{ env.TAG }}"
+
+      #       echo "Running new containers "
+      #       docker run -d \
+      #         --name my-app \
+      #         -p 3000:80 \
+      #         "69966/${{env.IMAGE_NAME }}:${{ env.TAG }}"
+            
+  

@@ -1,0 +1,12 @@
+- name: SonarCloud Scan
+  uses: SonarSource/sonarcloud-github-action@v2
+  with:
+    projectBaseDir: .
+  env:
+    SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+# For self-hosted approach 
+- name: SonarQube Scan
+  run: mvn sonar:sonar \
+    -Dsonar.host.url=http://your-sonarqube-server \
+    -Dsonar.login=${{ secrets.SONAR_TOKEN }}
