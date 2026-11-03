@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -17,13 +18,72 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                    docker stop reactjs-cont || true
-                    docker rm reactjs-cont || true
+                    set -eu
+
+                    echo "Step 1: Test the new image..."
+
+                    docker rm -f reactjs-test 2>/dev/null || true
 
                     docker run -d \
-                      --name reactjs-cont \
-                      -p 3005:80 \
+                      --name reactjs-test \
+                      -p 127.0.0.1:3006:3000 \
                       jenkins-react-pipeline
+
+                    sleep 5
+
+                    if ! curl -fsS http://127.0.0.1:3006/ > /dev/null; then
+                        echo "New image failed health check!"
+                        docker logs reactjs-test
+                        docker rm -f reactjs-test
+                        exit 1
+                    fi
+
+                    echo "New image passed health check."
+
+                    docker rm -f reactjs-test
+
+                    echo "Step 2: Preserve the old container..."
+
+                    docker rm -f reactjs-old 2>/dev/null || true
+
+                    if docker container inspect reactjs-cont >/dev/null 2>&1; then
+                        docker stop reactjs-cont
+                        docker rename reactjs-cont reactjs-old
+                    fi
+
+                    echo "Step 3: Start the new application..."
+
+                    if ! docker run -d \
+                      --name reactjs-cont \
+                      --restart unless-stopped \
+                      -p 3005:3000 \
+                      jenkins-react-pipeline; then
+
+                        echo "New container failed. Rolling back..."
+
+                        docker rm -f reactjs-cont 2>/dev/null || true
+                        docker rename reactjs-old reactjs-cont
+                        docker start reactjs-cont
+                        exit 1
+                    fi
+
+                    sleep 5
+
+                    if ! curl -fsS http://127.0.0.1:3005/ > /dev/null; then
+                        echo "New application failed. Rolling back..."
+
+                        docker logs reactjs-cont
+                        docker rm -f reactjs-cont
+
+                        docker rename reactjs-old reactjs-cont
+                        docker start reactjs-cont
+
+                        exit 1
+                    fi
+
+                    echo "Deployment successful!"
+
+                    docker rm -f reactjs-old 2>/dev/null || true
                 '''
             }
         }
