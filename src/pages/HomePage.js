@@ -13,6 +13,7 @@ const HomePage = () => {
                       Welcome to EarthDX Clone by chanthat main of god
                     </h1>
                     <h1>Chanthat is top one of boy</h1>
+                    <h2>The boss</h2>
                     <p> We are a team of passionate people whose goal is to improve everyone's life through disruptive products. We build great products to solve your business problems.</p>
                     <div className="d-flex pt-5">
                         <button className="btn btn-success px-4 py-2">
