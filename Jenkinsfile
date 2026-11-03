@@ -94,9 +94,9 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_REPO = 'chanthat/reactjs-devop8-template'
-        IMAGE_TAG = "${BUILD_NUMBER}"
-    }
+    DOCKERHUB_REPO = 'chanthat/reactjs-devop8-template'
+    IMAGE_TAG = "${BUILD_NUMBER}"
+}
 
     stages {
 
