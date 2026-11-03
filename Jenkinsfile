@@ -22,7 +22,7 @@ pipeline {
 
                     docker run -d \
                       --name reactjs-cont \
-                      -p 3000:80 \
+                      -p 3005:80 \
                       jenkins-react-pipeline
                 '''
             }
