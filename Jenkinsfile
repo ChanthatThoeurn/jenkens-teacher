@@ -89,6 +89,60 @@
 //         }
 //     }
 // }
+def esc(String s) {
+    return (s ?: '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+}
+
+def sendTelegram(String status) {
+    boolean ok = (status == 'SUCCESS')
+    String icon  = ok ? '✅' : '❌'
+    String title = ok ? 'Deployment Successful' : 'Deployment Failed'
+
+    String commit = 'n/a'
+    String author = 'n/a'
+    try {
+        commit = sh(script: 'git log -1 --pretty=%s', returnStdout: true).trim()
+        author = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
+    } catch (err) {
+        echo 'Could not read git info'
+    }
+
+    String now = sh(script: "date '+%d %b %Y, %H:%M %Z'", returnStdout: true).trim()
+    String duration = currentBuild.durationString.replace(' and counting', '')
+
+    String msg = """${icon} <b>${title}</b>
+━━━━━━━━━━━━━━━
+📦 <b>Project:</b>  <code>${esc(env.JOB_NAME)}</code>
+🔢 <b>Build:</b>  #${env.BUILD_NUMBER}
+🐳 <b>Image:</b>  <code>${esc(env.DOCKERHUB_REPO)}:${env.IMAGE_TAG}</code>
+👤 <b>Author:</b>  ${esc(author)}
+💬 <b>Commit:</b>  ${esc(commit)}
+⏱ <b>Duration:</b>  ${duration}
+🕐 <b>Time:</b>  ${now}"""
+
+    String buttons = ok
+        ? """{"inline_keyboard":[[{"text":"🔍 Build","url":"${env.BUILD_URL}"},{"text":"📜 Console","url":"${env.BUILD_URL}console"}],[{"text":"🌐 Open App","url":"http://3.233.255.129:3005"}]]}"""
+        : """{"inline_keyboard":[[{"text":"🔍 Build","url":"${env.BUILD_URL}"},{"text":"📜 Console","url":"${env.BUILD_URL}console"}]]}"""
+
+    writeFile file: 'tg_msg.txt', text: msg
+    writeFile file: 'tg_buttons.json', text: buttons
+
+    withCredentials([
+        string(credentialsId: 'telegram-token', variable: 'TG_TOKEN'),
+        string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
+    ]) {
+        sh '''
+            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+              -d chat_id="${TG_CHAT}" \
+              -d parse_mode="HTML" \
+              -d disable_web_page_preview=true \
+              --data-urlencode "text@tg_msg.txt" \
+              --data-urlencode "reply_markup@tg_buttons.json" \
+              || true
+            rm -f tg_msg.txt tg_buttons.json
+        '''
+    }
+}
 
 pipeline {
     agent any
@@ -161,39 +215,15 @@ pipeline {
         }
     }
 
-    post {
+        post {
         success {
             echo 'Pipeline completed successfully!'
-
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TG_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
-            ]) {
-                sh '''
-                    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-                      -d chat_id="${TG_CHAT}" \
-                      --data-urlencode text="✅ ${JOB_NAME} #${BUILD_NUMBER} deployed successfully
-${BUILD_URL}" \
-                      || true
-                '''
-            }
+            sendTelegram('SUCCESS')
         }
 
         failure {
             echo 'Pipeline failed. Check Console Output!'
-
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TG_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TG_CHAT')
-            ]) {
-                sh '''
-                    curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-                      -d chat_id="${TG_CHAT}" \
-                      --data-urlencode text="❌ ${JOB_NAME} #${BUILD_NUMBER} FAILED
-${BUILD_URL}console" \
-                      || true
-                '''
-            }
+            sendTelegram('FAILURE')
         }
     }
 }
