@@ -243,6 +243,13 @@ def sendEmail(String status) {
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+    }
+
     environment {
     DOCKERHUB_REPO = 'chanthat/reactjs-devop8-template'
     IMAGE_TAG = "${BUILD_NUMBER}"
@@ -288,6 +295,12 @@ pipeline {
         }
 
         stage('3. Deploy to EC2') {
+            when {
+                expression {
+                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'main'
+                    return branch ==~ /(origin\/)?main/
+                }
+            }
             steps {
                 echo 'Deploying React application...'
 
