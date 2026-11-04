@@ -12,6 +12,7 @@ const HomePage = () => {
                         {" "}
                       Welcome to EarthDX Telegram chat-bot
                     </h1>
+                    <h1>This Email Config</h1>
                     <h1>Hello from devops automation</h1>
                     <h1>This is homework tree</h1>
                     <p> We are a team of passionate people whose goal is to improve everyone's life through disruptive products. We build great products to solve your business problems.</p>

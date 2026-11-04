@@ -144,6 +144,102 @@ def sendTelegram(String status) {
     }
 }
 
+def sendEmail(String status) {
+    boolean ok = (status == 'SUCCESS')
+    String icon    = ok ? '✅' : '❌'
+    String title   = ok ? 'Deployment Successful' : 'Deployment Failed'
+    String sub     = ok ? 'Your app is live and healthy.' : 'Something went wrong. Check the console log.'
+    String color   = ok ? '#16a34a' : '#dc2626'
+    String soft    = ok ? '#dcfce7' : '#fee2e2'
+
+    String commit = 'n/a'
+    String author = 'n/a'
+    try {
+        commit = sh(script: 'git log -1 --pretty=%s', returnStdout: true).trim()
+        author = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
+    } catch (err) {
+        echo 'Could not read git info'
+    }
+
+    String now = sh(script: "date '+%d %b %Y, %H:%M %Z'", returnStdout: true).trim()
+    String duration = currentBuild.durationString.replace(' and counting', '')
+
+    String appButton = ok
+        ? """<a href="http://3.233.255.129:3005" style="display:inline-block;padding:12px 22px;margin:4px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">🌐 Open App</a>"""
+        : ''
+
+    String html = """<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(15,23,42,0.10);">
+
+        <tr><td style="background:${color};padding:32px 28px;text-align:center;">
+          <div style="font-size:44px;line-height:1;">${icon}</div>
+          <div style="color:#ffffff;font-size:26px;font-weight:700;margin-top:10px;">${title}</div>
+          <div style="color:#ffffff;opacity:0.9;font-size:14px;margin-top:6px;">${sub}</div>
+        </td></tr>
+
+        <tr><td style="padding:26px 28px 8px 28px;">
+          <div style="display:inline-block;background:${soft};color:${color};font-weight:700;font-size:12px;letter-spacing:1px;padding:5px 12px;border-radius:999px;">${status}</div>
+          <div style="font-size:20px;font-weight:700;color:#0f172a;margin-top:12px;">${esc(env.JOB_NAME)} <span style="color:#64748b;font-weight:500;">#${env.BUILD_NUMBER}</span></div>
+        </td></tr>
+
+        <tr><td style="padding:12px 28px 8px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#64748b;width:130px;">🐳 Image</td>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-family:Consolas,Menlo,monospace;">${esc(env.DOCKERHUB_REPO)}:${env.IMAGE_TAG}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">👤 Author</td>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;">${esc(author)}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">💬 Commit</td>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;">${esc(commit)}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#64748b;">⏱ Duration</td>
+              <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;">${duration}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;color:#64748b;">🕐 Time</td>
+              <td style="padding:12px 0;color:#0f172a;">${now}</td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding:20px 28px 30px 28px;text-align:center;">
+          <a href="${env.BUILD_URL}" style="display:inline-block;padding:12px 22px;margin:4px;background:${color};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">🔍 View Build</a>
+          <a href="${env.BUILD_URL}console" style="display:inline-block;padding:12px 22px;margin:4px;background:#475569;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">📜 Console Log</a>
+          ${appButton}
+        </td></tr>
+
+        <tr><td style="background:#f8fafc;padding:16px 28px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0;">
+          Sent automatically by Jenkins CI/CD
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    try {
+        emailext(
+            to: 'kokazono18@gmail.com',
+            subject: "${icon} ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${title}",
+            mimeType: 'text/html',
+            body: html,
+            attachLog: !ok
+        )
+    } catch (err) {
+        echo "Email failed: ${err.getMessage()}"
+    }
+}
+
 pipeline {
     agent any
 
@@ -215,15 +311,17 @@ pipeline {
         }
     }
 
-        post {
+    post {
         success {
             echo 'Pipeline completed successfully!'
             sendTelegram('SUCCESS')
+            sendEmail('SUCCESS')
         }
 
         failure {
             echo 'Pipeline failed. Check Console Output!'
             sendTelegram('FAILURE')
+            sendEmail('FAILURE')
         }
     }
 }
