@@ -253,7 +253,7 @@ pipeline {
     environment {
     DOCKERHUB_REPO = 'chanthat/reactjs-devop8-template'
     IMAGE_TAG = "${BUILD_NUMBER}"
-}
+    }
 
     stages {
 
@@ -300,7 +300,7 @@ pipeline {
                     def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'main'
                     return branch ==~ /(origin\/)?main/
                 }
-            }
+            }y h
             steps {
                 echo 'Deploying React application...'
 
@@ -322,6 +322,70 @@ pipeline {
                 '''
             }
         }
+
+stage('4. OWASP ZAP Dynamic Security Scan') {
+    steps {
+        script {
+            echo 'Starting OWASP ZAP Security Scan...'
+
+            def zapStatus = sh(
+                script: '''
+                    docker run --rm \
+                      ghcr.io/zaproxy/zaproxy:stable \
+                      zap-baseline.py \
+                      -t https://thatdevops.duckdns.org/ \
+                      -m 1 \
+                      -s
+                ''',
+                returnStatus: true
+            )
+
+            if (zapStatus == 0) {
+                echo 'ZAP SCAN PASSED - No warnings detected.'
+            }
+            else if (zapStatus == 2 || zapStatus == 1) {
+                echo 'SECURITY FINDINGS DETECTED!'
+
+                withCredentials([
+                    string(
+                        credentialsId: 'telegram-bot-token',
+                        variable: 'TG_TOKEN'
+                    ),
+                    string(
+                        credentialsId: 'telegram-chat-id',
+                        variable: 'TG_CHAT'
+                    )
+                ]) {
+                    withEnv([
+                        "ZAP_ALERT=OWASP ZAP Security Alert! Website: https://thatdevops.duckdns.org/ | Scan exit code: ${zapStatus} | Jenkins Build: ${env.BUILD_NUMBER}. Review Jenkins Console Output."
+                    ]) {
+                        sh '''
+                            set +x
+
+                            curl --fail --silent --show-error \
+                              --retry 2 \
+                              -X POST \
+                              "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+                              --data-urlencode "chat_id=${TG_CHAT}" \
+                              --data-urlencode "text=${ZAP_ALERT}" \
+                              > /dev/null
+                        '''
+                    }
+                }
+
+                echo 'TELEGRAM SECURITY ALERT SENT'
+
+                if (zapStatus == 1) {
+                    error('ZAP security policy FAILED!')
+                }
+            }
+            else {
+                error("ZAP scan execution failed: ${zapStatus}")
+            }
+        }
+    }
+}
+
     }
 
     post {
