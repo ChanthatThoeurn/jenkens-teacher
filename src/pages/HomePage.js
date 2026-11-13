@@ -11,7 +11,7 @@ const HomePage = () => {
                     <h1 className="display-2 header-title">
                         {" "}
                       Welcome to EarthDX Telegram chat-bot
-                      Hello zap
+                      Hello zap version 2
                     </h1>
                     
                     <h1>This Email Config</h1>
