@@ -16,7 +16,7 @@ const HomePage = () => {
                     
                     <h1>This Email Config</h1>
                     <h1>Hello from devops automation</h1>
-                    <h1>This is homework tree</h1>
+                    <h1>This is homework tree auto running </h1>
                     <p> We are a team of passionate people whose goal is to improve everyone's life through disruptive products. We build great products to solve your business problems.</p>
                     <div className="d-flex pt-5">
                         <button className="btn btn-success px-4 py-2">
