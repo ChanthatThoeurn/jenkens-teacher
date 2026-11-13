@@ -430,46 +430,46 @@ pipeline {
 
         }
 
-        stage('3. Deploy to EC2') {
+        // stage('3. Deploy to EC2') {
 
-            when {
+        //     when {
 
-                expression {
+        //         expression {
 
-                    def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'main'
+        //             def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'main'
 
-                    return branch == 'main' || branch == 'origin/main'
+        //             return branch == 'main' || branch == 'origin/main'
 
-                }
+        //         }
 
-            }
+        //     }
 
-            steps {
+        //     steps {
 
-                echo 'Deploying React application...'
+        //         echo 'Deploying React application...'
 
-                sh '''
+        //         sh '''
 
-                    docker pull $DOCKERHUB_REPO:$IMAGE_TAG
+        //             docker pull $DOCKERHUB_REPO:$IMAGE_TAG
 
-                    docker rm -f reactjs-cont 2>/dev/null || true
+        //             docker rm -f reactjs-cont 2>/dev/null || true
 
-                    docker run -d \\
-                      --name reactjs-cont \\
-                      --restart unless-stopped \\
-                      -p 3005:3000 \\
-                      $DOCKERHUB_REPO:$IMAGE_TAG
+        //             docker run -d \\
+        //               --name reactjs-cont \\
+        //               --restart unless-stopped \\
+        //               -p 3005:3000 \\
+        //               $DOCKERHUB_REPO:$IMAGE_TAG
 
-                    sleep 5
+        //             sleep 5
 
-                    curl -f http://127.0.0.1:3005/ \\
-                      || (docker logs reactjs-cont && exit 1)
+        //             curl -f http://127.0.0.1:3005/ \\
+        //               || (docker logs reactjs-cont && exit 1)
 
-                '''
+        //         '''
 
-            }
+        //     }
 
-        }
+        // }
 
         stage('4. OWASP ZAP Dynamic Security Scan') {
             steps {
